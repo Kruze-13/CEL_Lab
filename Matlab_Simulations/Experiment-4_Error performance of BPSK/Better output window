@@ -1,0 +1,116 @@
+clc;
+clear all;
+close all;
+
+% input and initialisation
+num_bits = 10000;
+samples_per_bit = 50;
+total_samples = num_bits * samples_per_bit;
+x = randi([0, 1], 1, num_bits);
+
+% Preallocate arrays
+polar = zeros(1, total_samples);
+bpsk = zeros(1, total_samples);
+
+% Generate polar waveform
+for i = 1:num_bits
+    start_idx = (i-1)*samples_per_bit + 1;
+    end_idx = i*samples_per_bit;
+    polar(start_idx:end_idx) = 2*x(i) - 1;  % Maps 0->-1, 1->1
+end
+
+% Normalize carrier
+t = 0:0.01:0.49;
+f = 10;
+carrier = sin(2*pi*f*t);
+carrier = carrier / norm(carrier);
+
+% Generate BPSK signal
+for i = 1:num_bits
+    start_idx = (i-1)*samples_per_bit + 1;
+    end_idx = i*samples_per_bit;
+    bpsk(start_idx:end_idx) = (2*x(i) - 1) .* carrier;
+end
+
+% Preallocate result arrays
+SNR_values = 0:0.1:0.9;
+num_SNR = length(SNR_values);
+BER_pr = zeros(1, num_SNR);
+BER_t = zeros(1, num_SNR);
+SER = zeros(1, num_SNR);
+SNR_dB = zeros(1, num_SNR);
+
+% Main simulation loop
+for idx = 1:num_SNR
+    j = SNR_values(idx);
+    noise = sqrt(j) * randn(1, total_samples);
+    received = bpsk + noise;
+    
+    % Demodulate
+    received_reshaped = reshape(received, samples_per_bit, num_bits);
+    h = carrier * received_reshaped;
+    
+    % Detect bits
+    b = h > 0;
+    
+    % Calculate metrics
+    BER_pr(idx) = sum(xor(x, b)) / num_bits;
+    SNR_linear = 1 / (2*j);
+    BER_t(idx) = 0.5 * erfc(sqrt(SNR_linear));
+    SER(idx) = 0.5 * erfc(sqrt(SNR_linear));
+    SNR_dB(idx) = 10 * log10(SNR_linear);
+end
+
+% Create single figure window with all plots
+figure('Position', [100, 100, 1200, 800]);
+
+% Plot waveforms (left column)
+subplot(3,2,1);
+plot(polar(1:500));
+title('Polar Waveform (First 10 bits)');
+xlabel('Sample Index');
+ylabel('Amplitude');
+axis([0 500 -1.5 1.5]);
+
+subplot(3,2,3);
+plot(carrier);
+title('Normalized Carrier Waveform');
+xlabel('Sample Index');
+ylabel('Amplitude');
+
+subplot(3,2,5);
+plot(bpsk(1:500));
+title('BPSK Signal (First 10 bits)');
+xlabel('Sample Index');
+ylabel('Amplitude');
+axis([0 500 -1.5 1.5]);
+
+% Plot performance metrics (right column)
+subplot(3,2,2);
+semilogy(SNR_dB, BER_pr, 'b-o');
+title('BER vs SNR');
+xlabel('SNR (dB)');
+ylabel('Bit Error Rate');
+grid on;
+
+subplot(3,2,4);
+semilogy(SNR_dB, BER_t, 'k--', SNR_dB, BER_pr, 'b-o');
+title('Theoretical vs Practical BER');
+xlabel('SNR (dB)');
+ylabel('Bit Error Rate');
+legend('Theoretical', 'Practical');
+grid on;
+
+subplot(3,2,6);
+semilogy(SNR_dB, SER, 'r-s');
+title('SER vs SNR');
+xlabel('SNR (dB)');
+ylabel('Symbol Error Rate');
+grid on;
+
+% Adjust spacing
+set(gcf, 'Color', 'w');
+ha = findobj(gcf,'type','axes');
+for i = 1:length(ha)
+    set(ha(i), 'FontSize', 8);
+end
