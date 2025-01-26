@@ -1,0 +1,115 @@
+clc;
+clear all;
+close all;
+
+% input and initialisation
+num_bits = 10000;
+samples_per_bit = 50;
+total_samples = num_bits * samples_per_bit;
+x = randi([0, 1], 1, num_bits);
+
+% Preallocate polar and bpsk
+polar = zeros(1, total_samples);
+bpsk = zeros(1, total_samples);
+
+% Generate polar waveform
+for i = 1:num_bits
+    start_idx = (i-1)*samples_per_bit + 1;
+    end_idx = i*samples_per_bit;
+    if x(i) == 1
+        polar(start_idx:end_idx) = ones(1, samples_per_bit);
+    else
+        polar(start_idx:end_idx) = -ones(1, samples_per_bit);
+    end
+end
+
+% Normalize carrier
+t = 0:0.01:0.49;
+f = 10;
+carrier = sin(2*pi*f*t);
+carrier = carrier / norm(carrier);
+
+% Generate BPSK signal
+for i = 1:num_bits
+    start_idx = (i-1)*samples_per_bit + 1;
+    end_idx = i*samples_per_bit;
+    if x(i) == 1
+        bpsk(start_idx:end_idx) = carrier;
+    else
+        bpsk(start_idx:end_idx) = -carrier;
+    end
+end
+
+% Plot waveforms
+subplot(3,1,1);
+plot(polar);
+xlabel('time');
+ylabel('amplitude');
+title('Polar waveform');
+axis([0 500 -2 2]);
+
+subplot(3,1,2);
+plot(carrier);
+xlabel('time');
+ylabel('amplitude');
+title('Carrier waveform');
+
+subplot(3,1,3);
+plot(bpsk);
+xlabel('time');
+ylabel('amplitude');
+title('BPSK signal');
+axis([0 500 -2 2]);
+
+% Preallocate result arrays
+SNR_values = 0:0.1:0.9;
+num_SNR = length(SNR_values);
+BER_pr = zeros(1, num_SNR);
+BER_t = zeros(1, num_SNR);
+SER = zeros(1, num_SNR);
+SNR_dB = zeros(1, num_SNR);
+
+% Main simulation loop
+for idx = 1:num_SNR
+    j = SNR_values(idx);
+    % Add AWGN
+    noise = sqrt(j) * randn(1, total_samples);
+    received = bpsk + noise;
+    
+    % Reshape and demodulate
+    received_reshaped = reshape(received, samples_per_bit, num_bits);
+    h = carrier * received_reshaped;
+    
+    % Detect bits (preallocated)
+    b = zeros(1, num_bits);
+    for i = 1:num_bits
+        b(i) = h(i) > 0;
+    end
+    
+    % Calculate metrics
+    BER_pr(idx) = sum(xor(x, b)) / num_bits;
+    SNR_linear = 1 / (2*j);
+    BER_t(idx) = 0.5 * erfc(sqrt(SNR_linear));
+    SER(idx) = 0.5 * erfc(sqrt(SNR_linear));
+    SNR_dB(idx) = 10 * log10(SNR_linear);
+end
+
+% Plot results
+figure;
+semilogy(SNR_dB, BER_pr);
+xlabel('SNR (dB)');
+ylabel('BER');
+title('BER vs SNR');
+
+figure;
+semilogy(SNR_dB, BER_t,'*', SNR_dB, BER_pr,'r');
+legend('Theoretical','Practical');
+xlabel('SNR (dB)');
+ylabel('BER');
+title('Theoretical vs Practical BER');
+
+figure;
+semilogy(SNR_dB, SER);
+xlabel('SNR (dB)');
+ylabel('SER');
+title('SER vs SNR');
