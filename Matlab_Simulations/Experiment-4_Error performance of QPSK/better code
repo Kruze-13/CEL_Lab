@@ -1,0 +1,172 @@
+clc;
+clear all;
+close all;
+
+% Input
+N = input('Enter N= ');
+f = input('Enter frequency= ');
+t = 0:0.01:0.49;
+x = randi([0, 1], [1, N]);
+
+% Create a single figure with a larger size
+figure('Units', 'normalized', 'OuterPosition', [0 0 1 1]); % Maximize figure window
+
+% Font settings for better visibility
+fontSize = 12;
+
+% Separating odd and even components
+even = [];
+odd = [];
+for i = 1:N/2
+    even = [even x(2*i)];
+    odd = [odd x((2*i)-1)];
+end
+
+% Plot 1: Polar form of even binary signal
+msge = [];
+xe = [];
+for i = 1:N/2
+    if even(i) == 1
+        xe = ones(1, 50);
+    else
+        xe = -1 .* ones(1, 50);
+    end
+    msge = [msge xe];
+end
+subplot(4, 3, 1);
+plot(msge);
+xlabel('Time', 'FontSize', fontSize);
+ylabel('Amplitude', 'FontSize', fontSize);
+title('Polar form of even binary signal', 'FontSize', fontSize);
+axis([0 length(msge) -2 2]);
+
+% Plot 2: BPSK signal from even binary signal
+s = sin(2*pi*f*t);
+snor = s / sqrt(sum(s .* s));
+bpske = [];
+for i = 1:N/2
+    if even(i) == 1
+        se = snor;
+    else
+        se = -snor;
+    end
+    bpske = [bpske se];
+end
+subplot(4, 3, 2);
+plot(bpske);
+xlabel('Time', 'FontSize', fontSize);
+ylabel('Amplitude', 'FontSize', fontSize);
+title('BPSK signal from even', 'FontSize', fontSize);
+axis([0 length(bpske) -0.5 0.5]);
+
+% Plot 3: Polar form of odd binary signal
+msgo = [];
+xo = [];
+for i = 1:N/2
+    if odd(i) == 1
+        xo = ones(1, 50);
+    else
+        xo = -1 .* ones(1, 50);
+    end
+    msgo = [msgo xo];
+end
+subplot(4, 3, 3);
+plot(msgo);
+xlabel('Time', 'FontSize', fontSize);
+ylabel('Amplitude', 'FontSize', fontSize);
+title('Polar form of odd binary signal', 'FontSize', fontSize);
+axis([0 length(msgo) -2 2]);
+
+% Plot 4: BPSK signal from odd binary signal
+c = cos(2*pi*f*t);
+cnor = c / sqrt(sum(c .* c));
+bpsko = [];
+for i = 1:N/2
+    if odd(i) == 1
+        so = cnor;
+    else
+        so = -cnor;
+    end
+    bpsko = [bpsko so];
+end
+subplot(4, 3, 4);
+plot(bpsko);
+xlabel('Time', 'FontSize', fontSize);
+ylabel('Amplitude', 'FontSize', fontSize);
+title('BPSK signal from odd', 'FontSize', fontSize);
+axis([0 length(bpsko) -0.5 0.5]);
+
+% Plot 5: QPSK signal
+qp = bpske + bpsko;
+subplot(4, 3, 5);
+plot(qp);
+xlabel('Time', 'FontSize', fontSize);
+ylabel('Amplitude', 'FontSize', fontSize);
+title('QPSK signal', 'FontSize', fontSize);
+axis([0 length(qp) -1 1]);
+
+% Plot 6: Constellation plot for specific noise levels
+scatter_data = [];
+l = length(qp);
+for j = 0:0.1:0.2 % Select noise levels 0, 0.1, 0.2
+    sd = sqrt(j);
+    rcvd = qp + (sd .* randn(1, l));
+    h = reshape(rcvd, 50, l/50);
+
+    reshapede = snor * h;
+    reshapedo = cnor * h;
+
+    scatter_data = [scatter_data; reshapede', reshapedo'];
+end
+subplot(4, 3, 6);
+scatter(scatter_data(:, 1), scatter_data(:, 2), '.');
+title('Constellation Plot (AWGN)', 'FontSize', fontSize);
+xlabel('In-phase', 'FontSize', fontSize);
+ylabel('Quadrature', 'FontSize', fontSize);
+
+% Plot 7: BER vs SNR
+pee = [];
+peo = [];
+snr = [];
+ser = [];
+
+for j = 0:0.1:1
+    sd = sqrt(j);
+    rcvd = qp + (sd .* randn(1, l));
+    h = reshape(rcvd, 50, l/50);
+
+    reshapede = snor * h;
+    reshapedo = cnor * h;
+
+    % BER and SNR calculations
+    RE = reshapede > 0;
+    RO = reshapedo > 0;
+    dem = [];
+    for i = 1:N/2
+        dem = [dem RO(i) RE(i)];
+    end
+    pe_pr = (sum(xor(dem, x))) / N; % Practical BER
+    pee = [pee pe_pr];
+    SNR = 1 / (2*j + 1e-10); % Avoid division by zero
+    SNR1 = 10 * log10(SNR); % dB
+    snr = [snr SNR1];
+    pe_th = 0.5 * erfc(sqrt(SNR)); % Theoretical BER
+    peo = [peo pe_th];
+    SER = erfc(sqrt(SNR));
+    ser = [ser SER];
+end
+
+subplot(4, 3, 7);
+semilogy(snr, pee, '*', snr, peo, 'b');
+title('Practical vs Theoretical BER', 'FontSize', fontSize);
+legend('Practical', 'Theoretical', 'FontSize', fontSize);
+xlabel('SNR (dB)', 'FontSize', fontSize);
+ylabel('BER', 'FontSize', fontSize);
+
+% Plot 8: SER vs SNR
+subplot(4, 3, 8);
+semilogy(snr, ser);
+title('SER vs SNR', 'FontSize', fontSize);
+xlabel('SNR (dB)', 'FontSize', fontSize);
+ylabel('SER', 'FontSize', fontSize);
+
