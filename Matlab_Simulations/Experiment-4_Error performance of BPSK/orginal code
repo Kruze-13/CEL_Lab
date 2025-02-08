@@ -1,128 +1,127 @@
-clc;
-clear all;
-close all;
-
-% input and initialisation
-x=randi([0, 1], [1, 10000]);
-t=0:0.01:0.49;
-polar=[];
-bpsk=[];
-BER_pr=[];
-BER_t=[];
-SNR_dB=[];
-SER=[];
-
-% polar waveform
-for i=1:10000
-    if x(i)==1
-        x1=ones(1,50);
-    elseif x(i)==0
-        x1=-1.*ones(1,50);
+clc; 
+clear all; 
+close all; 
+% input and initialisation 
+og_bit_seq=randi([0, 1], [1, 10000]);
+t=0:0.01:0.49; %50 sample points
+polar=[]; 
+bpsk=[]; 
+BER_pr=[]; 
+BER_t=[]; 
+SNR_dB=[]; 
+SER=[]; 
+  
+% polar waveform 0,1 to -1,1
+for i=1:10000; 
+    if og_bit_seq(i)==1; 
+        x1=ones(1,50); %50 samples for 1 bit encoding
+    elseif og_bit_seq(i)==0; 
+        x1=-1.*ones(1,50); 
+    end 
+    polar=[polar x1]; 
+end 
+  
+% normalizing carrier 
+t=0:0.01:0.49; 
+freq=10; %freq
+sine=sin(2*pi*freq*t); 
+norm_sine=sine./sqrt(sum(sine.*sine)); %normalized sine
+  
+  
+% BPSK 
+for i=1:10000; 
+    if og_bit_seq(i)==1; 
+        t1=norm_sine; 
+    else 
+        t1=-norm_sine;  %phase shifted sine 
     end
-    polar=[polar x1];
+    bpsk=[bpsk t1]; 
+end 
+subplot(3,1,1); 
+plot(polar); 
+xlabel(' time'); 
+ylabel('amplitude'); 
+title('Polar waveform '); 
+axis([0 500 -2 2]); 
+subplot(3,1,2); 
+plot(norm_sine); 
+xlabel(' time'); 
+ylabel('amplitude'); 
+title('Carrier waveform '); 
+subplot(3,1,3); 
+plot(bpsk); 
+xlabel(' time'); 
+ylabel('amplitude'); 
+title('BPSK signal'); 
+axis([0 500 -2 2]); 
+L=length(bpsk); 
+
+%noise dfenition and plotting
+for j=0:0.01:0.9; %var sigma square is j
+    %noise noise
+    noise=sqrt(j).*randn(1,500000); % sqrt(j)=std  50 samples*10000 bits
+    r=bpsk+noise; %total signal 
+    z=reshape(r,50,10000);% number of rows and columns adjusted for multiplication 
+    h=norm_sine*z;
+    if j==0 
+        scatterplot(h); 
+        title(['Constellation diagram for noise variance=',num2str(j)]); 
+    elseif j==0.01 
+        scatterplot(h); 
+        title(['Constellation diagram for noise variance=',num2str(j)]); 
+    elseif j==0.02 
+        scatterplot(h); 
+        title(['Constellation diagram for noise variance=',num2str(j)]); 
+    elseif j==0.5 
+        scatterplot(h); 
+        title(['Constellation diagram for noise variance=',num2str(j)]); 
+    end 
 end
 
-% normalizing carrier
-t=0:0.01:0.49;
-f=10;
-f1=sin(2*pi*f*t);
-f2=f1./sqrt(sum(f1.*f1));
+% adding noise and demodulation
+for j=0:0.1:0.9; 
+    noise=sqrt(j).*randn(1,500000); 
+    r=bpsk+noise; 
+    z=reshape(r,50,10000); 
+    h=norm_sine*z; %1 row 50 cols
+     
+    demod_bits=[]; 
+    for i=1:10000; 
+        if h(i)>0 
+            a=1;%decides in favour of 1 
+        else 
+            a=0; 
+        end 
+        demod_bits=[demod_bits a]; 
+    end 
 
-% BPSK
-for i=1:10000
-    if x(i)==1
-        t1=f2;
-    else
-        t1=-f2;
-    end
-    bpsk=[bpsk t1];
-end
-subplot(3,1,1);
-plot(polar);
-xlabel('time');
-ylabel('amplitude');
-title('Polar waveform ');
-axis([0 500 -2 2]);
+    % BER,SER calculation 
+    ber=(sum(xor(og_bit_seq,demod_bits)))/10000; %comparing og bit and demod bit equal or not
+    BER_pr=[BER_pr ber];   
+    SNR=1/(2*j); 
+    ber_t=0.5*erfc(sqrt(SNR)); 
+    BER_t=[BER_t ber_t]; 
+    ser=0.5*erfc(sqrt(SNR)); 
+    SER=[SER ser]; 
+    SNR1=10*log10(SNR); 
+    SNR_dB=[SNR_dB SNR1]; 
+end 
 
-subplot(3,1,2);
-plot(f2);
-xlabel(' time');
-ylabel('amplitude');
-title('Carrier waveform ');
-
-subplot(3,1,3);
-plot(bpsk);
-xlabel(' time');
-ylabel('amplitude');
-title('BPSK signal');
-axis([0 500 -2 2]);
-
-L=length(bpsk);
-
-% addition of AWGN, demodulation and detection
-for j=0:0.01:0.9
-    n=sqrt(j).*randn(1,500000);
-    r=bpsk+n;
-    z=reshape(r,50,10000);
-    h=f2*z;
-    if j==0
-        scatterplot(h);
-        title(['Constellation diagram for noise variance=',num2str(j)]);
-    elseif j==0.01
-        scatterplot(h);
-        title(['Constellation diagram for noise variance=',num2str(j)]);
-    elseif j==0.02
-        scatterplot(h);
-        title(['Constellation diagram for noise variance=',num2str(j)]);
-    elseif j==0.5
-        scatterplot(h);
-        title(['Constellation diagram for noise variance=',num2str(j)]);
-    end
-end
-
-for j=0:0.1:0.9
-    n=sqrt(j).*randn(1,500000);
-    r=bpsk+n;
-    z=reshape(r,50,10000);
-    h=f2*z;
-    b=[];
-    for i=1:10000
-        if h(i)>0
-            a=1;
-        else
-            a=0;
-        end
-        b=[b a];
-    end
-    % BER,SER calculation
-    ber=(sum(xor(x,b)))/10000;
-    BER_pr=[BER_pr ber];
-    SNR=1/(2*j);
-    ber_t=0.5*erfc(sqrt(SNR));
-    BER_t=[BER_t ber_t];
-    ser=0.5*erfc(sqrt(SNR));
-    SER=[SER ser];
-    SNR1=10*log10(SNR);
-    SNR_dB=[SNR_dB SNR1];
-end
-
-figure;
-semilogy(SNR_dB,BER_pr);
-xlabel('SNR');
-ylabel('BER');
-title('BER v/s SNR');
-
-figure;
-semilogy(SNR_dB,BER_t,'*',SNR_dB,BER_pr,'r');
-legend('Theoretical','Practical');
-xlabel('SNR');
-ylabel('BER');
-title('Theoretical and Practical');
-
-figure;
-semilogy(SNR_dB,SER);
-xlabel('SNR');
-ylabel('SER');
+figure; 
+semilogy(SNR_dB,BER_pr); 
+xlabel('SNR'); 
+ylabel('BER'); 
+title('BER v/s SNR'); 
+figure; 
+semilogy(SNR_dB,BER_t,'*',SNR_dB,BER_pr,'r'); 
+legend('Theoretical','Practical'); 
+xlabel('SNR'); 
+ylabel('BER'); 
+title('Theoretical and Practical'); 
+figure; 
+semilogy(SNR_dB,SER); 
+xlabel('SNR'); 
+ylabel('SER'); 
 title('SER v/s SNR');
 
 
